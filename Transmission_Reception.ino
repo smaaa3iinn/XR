@@ -16,72 +16,106 @@
  * - Name: Ismail Khouna
  * - E-mail: ismail.khouna@etudiant.univ-reims.fr \n
  *
- * $Name: - RELEASE_1_0 $
- * $Revision: - 1.0 $
+ * $Name: - RELEASE_2_0 $
+ * $Revision: - 2.0 $
  * $RCSfile: - transmission.c,v $
  * $Date: - 30/11/2023 12:30:00 $  \n
  ******************************************************************************/
 
-/*! \brief 
- * - La directive #define FOSC 16000000 fixe la fréquence du quartz du microcontrôleur à 16 MHz. 
- * - Cette information est utilisée dans le calcul du taux de bauds lors de la configuration de la communication série USART. 
- * - La constante FOSC assure une adaptation précise des paramètres de communication.
- */
-#define FOSC 16000000  // Clock Speed
+#define F_CPU 16000000UL              // Fréquence du CPU
+#define BAUD 9600                     // Débit en bauds
+#define MYUBRR F_CPU / 16 / BAUD - 1  // Calcul de la valeur d'UBRR
 
-/*! \brief 
- * - La directive `#define BAUD 9600` détermine le taux de bauds de la communication série USART à 9600 bits par seconde. 
- * - Cette constante est utilisée pour calculer la valeur du registre UBRR0, qui permet de configurer la communication série à la vitesse souhaitée. 
- * - La définition de `BAUD` facilite le réglage du taux de bauds dans le code sans avoir à le modifier directement.
- */
-#define BAUD 9600
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/interrupt.h>
 
-/*! \brief 
- * - La directive #define MYUBRR FOSC / 16 / BAUD - 1 calcule la valeur nécessaire pour le registre UBRR0 afin de configurer la communication série USART avec un taux de bauds de 9600 bps, en utilisant la fréquence du quartz FOSC de 16 MHz. 
- * - Cette constante MYUBRR est employée pour initialiser la communication série avec la vitesse de transmission désirée.
- */
-#define MYUBRR FOSC / 16 / BAUD - 1
+volatile int flag0 = 0;  // Variable pour indiquer la réception de données
+volatile int flag3 = 0;
+volatile char donnee;  // Variable pour stocker les données reçues
 
-/*! \brief 
- * - Ce programme principal initialise la communication série USART avec un taux de bauds spécifié (MYUBRR) et transmet continuellement le caractère ASCII 'A' (65 en décimal) via la fonction USART_Transmit. 
- */
-int main(void) {
-
-  USART_Init(MYUBRR);
-  while (1)
-    
-  {
-    USART_Transmit(65);
-  }
-}
-
-/*! \brief 
- * - La fonction USART_Init configure la communication série USART sur un microcontrôleur AVR. 
- * - Elle ajuste la vitesse de communication en configurant les registres de baud rate high et low, active le transmetteur USART, et définit le format du cadre de communication avec 8 bits de données et 2 bits d'arrêt. 
- * - Cette configuration standard assure une communication série fiable.
- */
-void USART_Init(unsigned int ubrr) {
-  /*Set baud rate */
+// Initialisation de l'USART0
+void USART0_Init(unsigned int ubrr) {
+  /* Configuration du taux de bauds */
   UBRR0H = (unsigned char)(ubrr >> 8);
   UBRR0L = (unsigned char)ubrr;
-  /*Enable receiver and transmitter */
-  UCSR0B = (1 << TXEN0);
-  /* Set frame format: 8data, 2stop bit */
-  UCSR0C = (1 << USBS0) | (3 << UCSZ00);
+  // Activation du récepteur et du transmetteur
+  UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
+  /* Configuration du format de trame : 8 bits de données, 1 bit de stop */
+  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
 }
 
-/*! \brief 
- * - La fonction USART_Transmit transmet un octet de données sur la communication série USART d'un microcontrôleur AVR.
- * - La boucle while assure l'attente du tampon de transmission vide.
- * - Le placement de la donnée dans le tampon de données (UDR0) déclenche le début de la transmission.
- * - Cette fonction est essentielle pour garantir une transmission synchrone, évitant la perte de données en attendant que le tampon soit disponible.
- */
-void USART_Transmit(unsigned char data) {
-  /* Wait for empty transmit buffer */
+// Initialisation de l'USART3
+void USART3_Init(unsigned int ubrr) {
+  /* Configuration du taux de bauds */
+  UBRR3H = (unsigned char)(ubrr >> 8);
+  UBRR3L = (unsigned char)ubrr;
+  // Activation du récepteur et du transmetteur
+  UCSR3B = (1 << RXEN3) | (1 << TXEN3) | (1 << RXCIE3);
+  /* Configuration du format de trame : 8 bits de données, 1 bit de stop */
+  UCSR3C = (1 << UCSZ31) | (1 << UCSZ30);
+}
+
+// Transmission via USART0
+void USART0_Transmit(unsigned char data) {
+  /* Attente du buffer de transmission vide */
   while (!(UCSR0A & (1 << UDRE0)))
     ;
-  /* Put data into buffer, sends the data */
+  /* Envoi des données dans le buffer */
   UDR0 = data;
 }
 
+// Transmission via USART3
+void USART3_Transmit(unsigned char data) {
+  /* Attente du buffer de transmission vide */
+  while (!(UCSR3A & (1 << UDRE3)))
+    ;
+  /* Envoi des données dans le buffer */
+  UDR3 = data;
+}
 
+// Réception via USART0
+unsigned char USART0_Receive(void) {
+  /* Attente des données à recevoir */
+  while (!(UCSR0A & (1 << RXC0)))
+    ;
+  /* Récupération et renvoi des données reçues */
+  return UDR0;
+}
+
+// Réception via USART3
+unsigned char USART3_Receive(void) {
+  /* Attente des données à recevoir */
+  while (!(UCSR3A & (1 << RXC3)))
+    ;
+  /* Récupération et renvoi des données reçues */
+  return UDR3;
+}
+
+// Interruption pour la réception sur USART0
+ISR(USART0_RX_vect) {
+  flag0 = 1;
+}
+
+// Interruption pour la réception sur USART3
+ISR(USART3_RX_vect) {
+  flag3 = 1;
+}
+
+int main(void) {
+  USART0_Init(MYUBRR);  // Initialisation de l'USART0
+  USART3_Init(MYUBRR);  // Initialisation de l'USART3
+  sei();                // Activation des interruptions globales
+
+  while (1) {
+    if (flag3) {
+      USART0_Transmit(UDR3);  // Transmission des données reçues par USART3 via USART0
+      flag3 = 0;
+    }
+    if (flag0) {
+      USART3_Transmit(UDR0);  // Transmission des données reçues par USART3 via USART0
+      flag0 = 0;
+    }
+    _delay_ms(1);  // Délai d'attente
+  }
+}
