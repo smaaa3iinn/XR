@@ -19,18 +19,26 @@
 #define FOSC 16000000 // Clock Speed
 #define BAUD 9600
 #define MYUBRR FOSC / 16 / BAUD - 1
+int flag=0;
+volatile char donnee;
 
 /*! \brief Fonction Main 
  */
 int main(void) {
   USART_Init(MYUBRR);
+  sei();
+  //USART_Transmit(USART_Receive()+1);
   while(1){
-  USART_Transmit(USART_Receive());
-  USART_Transmit('I');
-  USART_Transmit('U');
-  USART_Transmit('Tf');
-  USART_Transmit('\n');
-  _delay_ms(1000);
+    if(flag)
+    {
+      USART_Transmit(UDR0+1);
+      flag=0;
+    }
+  _delay_ms(1);
+  /*else{USART_Transmit('T');*/
+  /*USART_Transmit('o');
+  USART_Transmit('m');
+  USART_Transmit('\n');*/
   }
 }
 
@@ -41,7 +49,7 @@ void USART_Init(unsigned int ubrr) {
   UBRR0H = (unsigned char)(ubrr >> 8);
   UBRR0L = (unsigned char)ubrr;
   //Enable receiver and transmitter * /
-  UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+  UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
   /* Set frame format: 8data, 2stop bit */
   UCSR0C = (1 << USBS0) | (3 << UCSZ00);
 }
@@ -65,4 +73,10 @@ while (!(UCSR0A & (1<<RXC0)))
 ;
 /* Get and return received data from buffer */
 return UDR0;
+}
+
+/*! \brief https://www.nongnu.org/avr-libc/user-manual/group__avr__interrupts.html
+ */
+ISR(USART_RX_vect){
+  flag=1;
 }
